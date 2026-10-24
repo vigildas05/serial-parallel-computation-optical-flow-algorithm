@@ -3,58 +3,24 @@
 #include <opencv2/imgproc.hpp>
 #include <opencv2/core.hpp>
 #include <omp.h>
-#include <cmath>
 #include <utility>
-
-// Compute spatial and temporal derivatives
-static void computeDerivativesHS(const cv::Mat &I1, const cv::Mat &I2,
-                                    cv::Mat &Ix, cv::Mat &Iy, cv::Mat &It) {
-    // Inputs are expected as CV_32F grayscale. Smooth slightly for stability.
-    cv::Mat I1s, I2s;
-    cv::GaussianBlur(I1, I1s, cv::Size(5, 5), 1.0, 1.0, cv::BORDER_REPLICATE);
-    cv::GaussianBlur(I2, I2s, cv::Size(5, 5), 1.0, 1.0, cv::BORDER_REPLICATE);
-
-    cv::Sobel(I1s, Ix, CV_32F, 1, 0, 3, 0.5, 0, cv::BORDER_REPLICATE);
-    cv::Sobel(I1s, Iy, CV_32F, 0, 1, 3, 0.5, 0, cv::BORDER_REPLICATE);
-
-    // Temporal derivative (I2 - I1)
-    It = I2s - I1s;
-}
-
-static inline bool isFloat32Gray(const cv::Mat &m) {
-    return m.type() == CV_32F && m.channels() == 1;
-}
-
 
 void hornSchunckParallel(const cv::Mat &I1, const cv::Mat &I2,
                          cv::Mat &u, cv::Mat &v,
-                         float alpha, int iterations) {
+                         float alpha, int iterations,
+                         const hs::IterationCallback &onIteration) {
     CV_Assert(!I1.empty() && !I2.empty());
     CV_Assert(I1.size() == I2.size());
 
     // Ensure float32 grayscale
-    cv::Mat I1f, I2f;
-    if (isFloat32Gray(I1))
-        I1f = I1;
-    else
-        I1.convertTo(I1f, CV_32F);
-    if (isFloat32Gray(I2))
-        I2f = I2;
-    else
-        I2.convertTo(I2f, CV_32F);
+    cv::Mat I1f = hs::toFloatGray(I1);
+    cv::Mat I2f = hs::toFloatGray(I2);
 
     cv::Mat Ix, Iy, It;
-    computeDerivativesHS(I1f, I2f, Ix, Iy, It);
+    hs::computeDerivatives(I1f, I2f, Ix, Iy, It);
 
     // Precompute denominator: alpha^2 + Ix^2 + Iy^2
-    cv::Mat denom;
-    {
-        cv::Mat Ix2, Iy2;
-        cv::multiply(Ix, Ix, Ix2);
-        cv::multiply(Iy, Iy, Iy2);
-        denom = Ix2 + Iy2;
-        denom += alpha * alpha;
-    }
+    cv::Mat denom = hs::computeDenominator(Ix, Iy, alpha);
 
     // Initialize flow fields
     u = cv::Mat::zeros(I1f.size(), CV_32F);
@@ -107,5 +73,8 @@ void hornSchunckParallel(const cv::Mat &I1, const cv::Mat &I2,
         // Swap buffers for next iteration
         std::swap(u, u_next);
         std::swap(v, v_next);
+
+        if (onIteration)
+            onIteration(iter + 1, u, v);
     }
 }
