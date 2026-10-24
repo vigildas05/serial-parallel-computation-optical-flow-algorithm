@@ -11,4 +11,12 @@ void hornSchunckParallel(const cv::Mat &I1, const cv::Mat &I2,
                          float alpha, int iterations,
                          const hs::IterationCallback &onIteration = {});
 
+// Same algorithm and bit-identical results, restructured for throughput:
+// parallel over rows only (no collapse), raw row pointers, and no
+// per-iteration border copies.
+void hornSchunckParallelOpt(const cv::Mat &I1, const cv::Mat &I2,
+                            cv::Mat &u, cv::Mat &v,
+                            float alpha, int iterations,
+                            const hs::IterationCallback &onIteration = {});
+
 #endif

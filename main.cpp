@@ -40,7 +40,7 @@ Commands:
   flow         save HSV color-coded flow images for visual comparison
 
 Options (lists are comma separated):
-  --impl LIST       serial-gs, serial-jacobi, omp, cuda-v1, cuda-v2, cuda-v3, cuda-rb, all
+  --impl LIST       serial-gs, serial-jacobi, omp, omp-opt, cuda-v1, cuda-v2, cuda-v3, cuda-rb, all
   --size LIST       WxH or "native" (input frames are resized)     [native]
   --iters LIST      iteration counts                                [100]
   --threads LIST    OpenMP thread counts, "max" = omp_get_max_threads()  [max]
@@ -56,7 +56,7 @@ Frames default to data/rm1.jpg data/rm2.jpg.
 // ---------------------------------------------------------------------------
 // Implementations
 // ---------------------------------------------------------------------------
-enum class Impl { SerialGS, SerialJacobi, OMP, CudaV1, CudaV2, CudaV3, CudaRB };
+enum class Impl { SerialGS, SerialJacobi, OMP, OMPOpt, CudaV1, CudaV2, CudaV3, CudaRB };
 
 struct ImplInfo {
     Impl id;
@@ -66,7 +66,8 @@ struct ImplInfo {
 
 const ImplInfo kImpls[] = {
     {Impl::SerialGS, "serial-gs", false},  {Impl::SerialJacobi, "serial-jacobi", false},
-    {Impl::OMP, "omp", false},             {Impl::CudaV1, "cuda-v1", true},
+    {Impl::OMP, "omp", false},             {Impl::OMPOpt, "omp-opt", false},
+    {Impl::CudaV1, "cuda-v1", true},
     {Impl::CudaV2, "cuda-v2", true},       {Impl::CudaV3, "cuda-v3", true},
     {Impl::CudaRB, "cuda-rb", true},
 };
@@ -116,6 +117,7 @@ public:
         case Impl::SerialGS: hornSchunckSerial(I1, I2, u, v, alpha, iters, cb); break;
         case Impl::SerialJacobi: hornSchunckSerialJacobi(I1, I2, u, v, alpha, iters, cb); break;
         case Impl::OMP: hornSchunckParallel(I1, I2, u, v, alpha, iters, cb); break;
+        case Impl::OMPOpt: hornSchunckParallelOpt(I1, I2, u, v, alpha, iters, cb); break;
         default: break;
         }
         t.total = t.compute = chrono::duration<double, milli>(chrono::steady_clock::now() - start).count();
@@ -360,7 +362,7 @@ int cmdBench(const Options &o)
         for (int iters : o.iters) {
             for (Impl impl : impls) {
                 vector<int> threadList{1};
-                if (impl == Impl::OMP) threadList = o.threads;
+                if (impl == Impl::OMP || impl == Impl::OMPOpt) threadList = o.threads;
                 for (int threads : threadList) {
                     Mat u, v;
                     for (int w = 0; w < o.warmup; ++w)
@@ -411,20 +413,19 @@ FlowError compareFlow(const Mat &u, const Mat &v, const Mat &uRef, const Mat &vR
 
 int cmdValidate(const Options &o)
 {
-    if (!cudaAvailable()) {
-        cerr << "validate: this build has no CUDA support\n";
-        return 1;
-    }
-    // float32 vs float32 with different FMA contraction / evaluation order.
-    // Flow magnitudes here are up to ~10 px; the naive kernel measured
+    // CPU Jacobi variants perform the same float operations in the same order
+    // as the reference and must match it bit for bit.
+    // CUDA: float32 vs float32 with different FMA contraction / evaluation
+    // order. Flow magnitudes here are up to ~10 px; the naive kernel measured
     // max |d| ~3e-5 and mean EPE ~3e-7 after 1000 iterations, so these
     // leave ~3x headroom while still catching any real indexing/boundary bug.
     const double kMaxAbsTol = 1e-4, kMeanEpeTol = 1e-6;
 
     const Mat F1 = loadFrame(o.frame1), F2 = loadFrame(o.frame2);
+    // serial-gs is a different iteration scheme and the reference itself is omp.
     vector<Impl> impls;
     for (Impl i : (o.impls.empty() ? parseImpls("all") : o.impls))
-        if (info(i).gpu)
+        if (i != Impl::SerialGS && i != Impl::OMP)
             impls.push_back(i);
 
     cout << systemReport() << "\n";
@@ -440,21 +441,23 @@ int cmdValidate(const Options &o)
                  << " (reference omp Jacobi, max |flow| = " << viz::maxMagnitude(uRef, vRef) << " px)\n";
             for (Impl impl : impls) {
                 if (impl == Impl::CudaRB) {
-                    cout << "  " << left << setw(9) << info(impl).name << "skipped (no CPU reference yet)\n";
+                    cout << "  " << left << setw(15) << info(impl).name << "skipped (no CPU reference yet)\n";
                     continue;
                 }
                 Mat u, v;
                 runner.run(impl, I1, I2, u, v, o.alpha, iters, 1);
                 const FlowError e = compareFlow(u, v, uRef, vRef);
-                const bool pass = max(e.maxAbsU, e.maxAbsV) <= kMaxAbsTol && e.meanEpe <= kMeanEpeTol;
+                const bool pass = info(impl).gpu
+                    ? max(e.maxAbsU, e.maxAbsV) <= kMaxAbsTol && e.meanEpe <= kMeanEpeTol
+                    : max(e.maxAbsU, e.maxAbsV) == 0.0;
                 allPass &= pass;
-                cout << "  " << left << setw(9) << info(impl).name << scientific << setprecision(3)
+                cout << "  " << left << setw(15) << info(impl).name << scientific << setprecision(3)
                      << "max|du| " << e.maxAbsU << "  max|dv| " << e.maxAbsV << "  mean EPE "
                      << e.meanEpe << "  " << (pass ? "PASS" : "FAIL") << defaultfloat << "\n";
             }
         }
     }
-    cout << (allPass ? "All checks passed" : "SOME CHECKS FAILED") << " (tolerance: max abs "
+    cout << (allPass ? "All checks passed" : "SOME CHECKS FAILED") << " (CPU: bit-exact; CUDA: max abs "
          << kMaxAbsTol << ", mean EPE " << kMeanEpeTol << ")\n";
     return allPass ? 0 : 1;
 }
