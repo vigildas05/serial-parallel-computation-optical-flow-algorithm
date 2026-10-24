@@ -17,4 +17,11 @@ void hornSchunckSerialJacobi(const cv::Mat &I1, const cv::Mat &I2,
                              float alpha, int iterations,
                              const hs::IterationCallback &onIteration = {});
 
+// Serial Horn–Schunck, red-black Gauss–Seidel ordering. Reference for the
+// CUDA red-black kernel (same update order).
+void hornSchunckSerialRedBlack(const cv::Mat &I1, const cv::Mat &I2,
+                               cv::Mat &u, cv::Mat &v,
+                               float alpha, int iterations,
+                               const hs::IterationCallback &onIteration = {});
+
 #endif

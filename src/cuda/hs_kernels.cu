@@ -216,6 +216,32 @@ __global__ void jacobiFusedKernel(const float2 *__restrict__ uv,
     uv_out[i] = make_float2(u_avg - pi * t, v_avg - qi * t);
 }
 
+// ---------------------------------------------------------------------------
+// Red-black Gauss–Seidel on the v3 layout, updated in place. Pixels with
+// (x + y) % 2 == color are updated; their 4 neighbours all have the other
+// color and are not written during this launch, so there is no race. Each
+// thread owns one pixel of the active color: x = 2*k + ((y + color) & 1).
+// No __restrict__/__ldg on uv: it is read and written by the same kernel.
+// ---------------------------------------------------------------------------
+__global__ void redBlackKernel(float2 *uv,
+                               const float *__restrict__ p, const float *__restrict__ q,
+                               const float *__restrict__ r, int rows, int cols, int color)
+{
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    const int x = 2 * (blockIdx.x * blockDim.x + threadIdx.x) + ((y + color) & 1);
+    if (x < 1 || y < 1 || x >= cols - 1 || y >= rows - 1)
+        return;
+
+    const int i = y * cols + x;
+    const float2 n = uv[i - cols], s = uv[i + cols], w = uv[i - 1], e = uv[i + 1];
+    const float u_avg = 0.25f * (n.x + s.x + w.x + e.x);
+    const float v_avg = 0.25f * (n.y + s.y + w.y + e.y);
+
+    const float pi = __ldg(p + i), qi = __ldg(q + i);
+    const float t = pi * u_avg + qi * v_avg + __ldg(r + i);
+    uv[i] = make_float2(u_avg - pi * t, v_avg - qi * t);
+}
+
 __global__ void splitFlowKernel(const float2 *__restrict__ uv, float *__restrict__ u,
                                 float *__restrict__ v, int n)
 {
@@ -294,6 +320,17 @@ void launchJacobiFused(const float2 *uv, const float *p, const float *q, const f
     jacobiFusedKernel<<<gridFor(rows, cols), dim3(kBlockX, kBlockY), 0, stream>>>(
         uv, p, q, r, uv_out, rows, cols);
     CUDA_CHECK_LAUNCH();
+}
+
+void launchRedBlackSweep(float2 *uv, const float *p, const float *q, const float *r,
+                         int rows, int cols, cudaStream_t stream)
+{
+    const dim3 block(kBlockX, kBlockY);
+    const dim3 grid(((cols + 1) / 2 + kBlockX - 1) / kBlockX, (rows + kBlockY - 1) / kBlockY);
+    for (int color = 0; color < 2; ++color) {
+        redBlackKernel<<<grid, block, 0, stream>>>(uv, p, q, r, rows, cols, color);
+        CUDA_CHECK_LAUNCH();
+    }
 }
 
 void launchSplitFlow(const float2 *uv, float *u, float *v, int n, cudaStream_t stream)

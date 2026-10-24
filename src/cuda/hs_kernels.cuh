@@ -45,6 +45,10 @@ void launchFoldCoefficients(const float *Ix, const float *Iy, const float *It, c
 void launchJacobiFused(const float2 *uv, const float *p, const float *q, const float *r,
                        float2 *uv_out, int rows, int cols, cudaStream_t stream);
 
+// One red-black Gauss–Seidel iteration (red then black half-sweep), in place.
+void launchRedBlackSweep(float2 *uv, const float *p, const float *q, const float *r,
+                         int rows, int cols, cudaStream_t stream);
+
 // De-interleave (u, v) into separate planes for download.
 void launchSplitFlow(const float2 *uv, float *u, float *v, int n, cudaStream_t stream);
 

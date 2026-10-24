@@ -124,8 +124,9 @@ struct Solver::Impl {
         case Kernel::Fused:
             launchJacobiFused(uv[cur], p, q, r, uv[nxt], rows, cols, stream);
             break;
-        default:
-            CV_Error(cv::Error::StsNotImplemented, kernelName(k));
+        case Kernel::RedBlack:
+            launchRedBlackSweep(uv[cur], p, q, r, rows, cols, stream);
+            return; // in place: no buffer swap
         }
         cur = nxt;
     }

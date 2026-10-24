@@ -35,12 +35,12 @@ Usage:
 
 Commands:
   bench        time every (impl, size, iterations, threads) combination
-  validate     compare CUDA results against the CPU Jacobi/red-black references
+  validate     compare Jacobi variants against OpenMP Jacobi, cuda-rb against serial-rb
   convergence  record the fixed-point residual after every iteration
   flow         save HSV color-coded flow images for visual comparison
 
 Options (lists are comma separated):
-  --impl LIST       serial-gs, serial-jacobi, omp, omp-opt, cuda-v1, cuda-v2, cuda-v3, cuda-rb, all
+  --impl LIST       serial-gs, serial-jacobi, serial-rb, omp, omp-opt, cuda-v1, cuda-v2, cuda-v3, cuda-rb, all
   --size LIST       WxH or "native" (input frames are resized)     [native]
   --iters LIST      iteration counts                                [100]
   --threads LIST    OpenMP thread counts, "max" = omp_get_max_threads()  [max]
@@ -56,7 +56,7 @@ Frames default to data/rm1.jpg data/rm2.jpg.
 // ---------------------------------------------------------------------------
 // Implementations
 // ---------------------------------------------------------------------------
-enum class Impl { SerialGS, SerialJacobi, OMP, OMPOpt, CudaV1, CudaV2, CudaV3, CudaRB };
+enum class Impl { SerialGS, SerialJacobi, SerialRB, OMP, OMPOpt, CudaV1, CudaV2, CudaV3, CudaRB };
 
 struct ImplInfo {
     Impl id;
@@ -66,6 +66,7 @@ struct ImplInfo {
 
 const ImplInfo kImpls[] = {
     {Impl::SerialGS, "serial-gs", false},  {Impl::SerialJacobi, "serial-jacobi", false},
+    {Impl::SerialRB, "serial-rb", false},
     {Impl::OMP, "omp", false},             {Impl::OMPOpt, "omp-opt", false},
     {Impl::CudaV1, "cuda-v1", true},
     {Impl::CudaV2, "cuda-v2", true},       {Impl::CudaV3, "cuda-v3", true},
@@ -116,6 +117,7 @@ public:
         switch (impl) {
         case Impl::SerialGS: hornSchunckSerial(I1, I2, u, v, alpha, iters, cb); break;
         case Impl::SerialJacobi: hornSchunckSerialJacobi(I1, I2, u, v, alpha, iters, cb); break;
+        case Impl::SerialRB: hornSchunckSerialRedBlack(I1, I2, u, v, alpha, iters, cb); break;
         case Impl::OMP: hornSchunckParallel(I1, I2, u, v, alpha, iters, cb); break;
         case Impl::OMPOpt: hornSchunckParallelOpt(I1, I2, u, v, alpha, iters, cb); break;
         default: break;
@@ -422,10 +424,11 @@ int cmdValidate(const Options &o)
     const double kMaxAbsTol = 1e-4, kMeanEpeTol = 1e-6;
 
     const Mat F1 = loadFrame(o.frame1), F2 = loadFrame(o.frame2);
-    // serial-gs is a different iteration scheme and the reference itself is omp.
+    // Jacobi variants are checked against omp, cuda-rb against serial-rb.
+    // serial-gs (lexicographic order) has no counterpart to compare with.
     vector<Impl> impls;
     for (Impl i : (o.impls.empty() ? parseImpls("all") : o.impls))
-        if (i != Impl::SerialGS && i != Impl::OMP)
+        if (i != Impl::SerialGS && i != Impl::OMP && i != Impl::SerialRB)
             impls.push_back(i);
 
     cout << systemReport() << "\n";
@@ -435,25 +438,25 @@ int cmdValidate(const Options &o)
         Mat I1, I2;
         prepareFrames(F1, F2, size, I1, I2);
         for (int iters : o.iters) {
-            Mat uRef, vRef;
+            Mat uRef, vRef, uRefRB, vRefRB;
             runner.run(Impl::OMP, I1, I2, uRef, vRef, o.alpha, iters, omp_get_max_threads());
             cout << sizeStr(I1.size()) << ", " << iters << " iterations, alpha " << o.alpha
                  << " (reference omp Jacobi, max |flow| = " << viz::maxMagnitude(uRef, vRef) << " px)\n";
             for (Impl impl : impls) {
-                if (impl == Impl::CudaRB) {
-                    cout << "  " << left << setw(15) << info(impl).name << "skipped (no CPU reference yet)\n";
-                    continue;
-                }
+                const bool rb = impl == Impl::CudaRB;
+                if (rb && uRefRB.empty())
+                    runner.run(Impl::SerialRB, I1, I2, uRefRB, vRefRB, o.alpha, iters, 1);
                 Mat u, v;
                 runner.run(impl, I1, I2, u, v, o.alpha, iters, 1);
-                const FlowError e = compareFlow(u, v, uRef, vRef);
+                const FlowError e = rb ? compareFlow(u, v, uRefRB, vRefRB) : compareFlow(u, v, uRef, vRef);
                 const bool pass = info(impl).gpu
                     ? max(e.maxAbsU, e.maxAbsV) <= kMaxAbsTol && e.meanEpe <= kMeanEpeTol
                     : max(e.maxAbsU, e.maxAbsV) == 0.0;
                 allPass &= pass;
                 cout << "  " << left << setw(15) << info(impl).name << scientific << setprecision(3)
                      << "max|du| " << e.maxAbsU << "  max|dv| " << e.maxAbsV << "  mean EPE "
-                     << e.meanEpe << "  " << (pass ? "PASS" : "FAIL") << defaultfloat << "\n";
+                     << e.meanEpe << "  " << (pass ? "PASS" : "FAIL") << (rb ? "  (vs serial-rb)" : "")
+                     << defaultfloat << "\n";
             }
         }
     }
