@@ -121,6 +121,10 @@ struct Solver::Impl {
                 launchJacobiNaive(u[cur], v[cur], Ix, Iy, It, denom, u[nxt], v[nxt],
                                   rows, cols, stream);
                 break;
+            case Kernel::Shared:
+                launchJacobiShared(u[cur], v[cur], Ix, Iy, It, denom, u[nxt], v[nxt],
+                                   rows, cols, stream);
+                break;
             default:
                 CV_Error(cv::Error::StsNotImplemented, kernelName(kernel));
             }

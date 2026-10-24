@@ -121,6 +121,54 @@ __global__ void jacobiNaiveKernel(const float *u, const float *v,
     v_out[i] = v_avg - iy * t;
 }
 
+// ---------------------------------------------------------------------------
+// v2: shared-memory tiling. Each block stages its kBlockX x kBlockY tile of u
+// and v plus a 1-pixel halo (edges only - the 4-neighbour stencil needs no
+// corners) in shared memory, so each u/v value is read from global memory
+// about once per block instead of up to five times.
+// ---------------------------------------------------------------------------
+__global__ void jacobiSharedKernel(const float *__restrict__ u, const float *__restrict__ v,
+                                   const float *__restrict__ Ix, const float *__restrict__ Iy,
+                                   const float *__restrict__ It, const float *__restrict__ denom,
+                                   float *__restrict__ u_out, float *__restrict__ v_out,
+                                   int rows, int cols)
+{
+    __shared__ float su[kBlockY + 2][kBlockX + 2];
+    __shared__ float sv[kBlockY + 2][kBlockX + 2];
+
+    const int tx = threadIdx.x, ty = threadIdx.y;
+    const int x = blockIdx.x * kBlockX + tx;
+    const int y = blockIdx.y * kBlockY + ty;
+    const int sx = tx + 1, sy = ty + 1;
+
+    // Out-of-image cells are only ever neighbours of border pixels, which
+    // are not updated, so their value does not matter.
+    auto load = [&](int gy, int gx, int ly, int lx) {
+        const bool inside = gx >= 0 && gx < cols && gy >= 0 && gy < rows;
+        su[ly][lx] = inside ? u[gy * cols + gx] : 0.f;
+        sv[ly][lx] = inside ? v[gy * cols + gx] : 0.f;
+    };
+    load(y, x, sy, sx);
+    if (tx == 0) load(y, x - 1, sy, 0);
+    if (tx == kBlockX - 1) load(y, x + 1, sy, kBlockX + 1);
+    if (ty == 0) load(y - 1, x, 0, sx);
+    if (ty == kBlockY - 1) load(y + 1, x, kBlockY + 1, sx);
+    __syncthreads();
+
+    if (x < 1 || y < 1 || x >= cols - 1 || y >= rows - 1)
+        return;
+
+    const float u_avg = 0.25f * (su[sy - 1][sx] + su[sy + 1][sx] + su[sy][sx - 1] + su[sy][sx + 1]);
+    const float v_avg = 0.25f * (sv[sy - 1][sx] + sv[sy + 1][sx] + sv[sy][sx - 1] + sv[sy][sx + 1]);
+
+    const int i = y * cols + x;
+    const float ix = Ix[i];
+    const float iy = Iy[i];
+    const float t = (ix * u_avg + iy * v_avg + It[i]) / denom[i];
+    u_out[i] = u_avg - ix * t;
+    v_out[i] = v_avg - iy * t;
+}
+
 } // namespace
 
 void setGaussianKernel(const float taps[5])
@@ -154,6 +202,16 @@ void launchJacobiNaive(const float *u, const float *v,
                        int rows, int cols, cudaStream_t stream)
 {
     jacobiNaiveKernel<<<gridFor(rows, cols), dim3(kBlockX, kBlockY), 0, stream>>>(
+        u, v, Ix, Iy, It, denom, u_out, v_out, rows, cols);
+    CUDA_CHECK_LAUNCH();
+}
+
+void launchJacobiShared(const float *u, const float *v,
+                        const float *Ix, const float *Iy, const float *It, const float *denom,
+                        float *u_out, float *v_out,
+                        int rows, int cols, cudaStream_t stream)
+{
+    jacobiSharedKernel<<<gridFor(rows, cols), dim3(kBlockX, kBlockY), 0, stream>>>(
         u, v, Ix, Iy, It, denom, u_out, v_out, rows, cols);
     CUDA_CHECK_LAUNCH();
 }

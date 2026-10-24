@@ -31,6 +31,12 @@ void launchJacobiNaive(const float *u, const float *v,
                        float *u_out, float *v_out,
                        int rows, int cols, cudaStream_t stream);
 
+// v2: same sweep, u/v neighbours staged in shared memory with a 1-pixel halo.
+void launchJacobiShared(const float *u, const float *v,
+                        const float *Ix, const float *Iy, const float *It, const float *denom,
+                        float *u_out, float *v_out,
+                        int rows, int cols, cudaStream_t stream);
+
 } // namespace hs::gpu::detail
 
 #endif
