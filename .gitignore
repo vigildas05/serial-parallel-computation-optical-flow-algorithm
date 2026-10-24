@@ -43,3 +43,8 @@
 # Build files
 build
 build-*
+# Nsight Systems reports embed the profiled process's environment variables
+# (which can include tokens), so they are never committed. Regenerate with
+# scripts/profile.sh; the CSV summaries next to them are safe to commit.
+results/profile/*.nsys-rep
+results/profile/*.sqlite

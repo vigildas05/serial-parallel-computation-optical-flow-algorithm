@@ -1,0 +1,111 @@
+CPU:    11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz (8 cores, 16 threads)
+OpenMP: max threads 16
+OpenCV: 4.14.0
+GPU:    NVIDIA GeForce RTX 2050 | sm_86 | 16 SMs | 4095 MiB | 64-bit bus, 112.016 GB/s peak | L2 1024 KiB | driver 13.3, runtime 13.3
+
+37x5, 100 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 0.211081 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 5.215e-08  max|dv| 1.043e-07  mean EPE 1.280e-08  PASS
+  cuda-v2        max|du| 5.215e-08  max|dv| 1.043e-07  mean EPE 1.280e-08  PASS
+  cuda-v3        max|du| 5.029e-08  max|dv| 1.341e-07  mean EPE 1.513e-08  PASS
+  cuda-rb        max|du| 5.029e-08  max|dv| 1.341e-07  mean EPE 1.513e-08  PASS  (vs serial-rb)
+37x5, 500 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 0.211 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 5.215e-08  max|dv| 1.043e-07  mean EPE 1.281e-08  PASS
+  cuda-v2        max|du| 5.215e-08  max|dv| 1.043e-07  mean EPE 1.281e-08  PASS
+  cuda-v3        max|du| 5.029e-08  max|dv| 1.341e-07  mean EPE 1.513e-08  PASS
+  cuda-rb        max|du| 5.029e-08  max|dv| 1.341e-07  mean EPE 1.513e-08  PASS  (vs serial-rb)
+37x5, 1000 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 0.211 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 5.215e-08  max|dv| 1.043e-07  mean EPE 1.281e-08  PASS
+  cuda-v2        max|du| 5.215e-08  max|dv| 1.043e-07  mean EPE 1.281e-08  PASS
+  cuda-v3        max|du| 5.029e-08  max|dv| 1.341e-07  mean EPE 1.513e-08  PASS
+  cuda-rb        max|du| 5.029e-08  max|dv| 1.341e-07  mean EPE 1.513e-08  PASS  (vs serial-rb)
+641x479, 100 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 4.29 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 2.593e-06  max|dv| 6.795e-06  mean EPE 1.204e-07  PASS
+  cuda-v2        max|du| 2.593e-06  max|dv| 6.795e-06  mean EPE 1.204e-07  PASS
+  cuda-v3        max|du| 2.652e-06  max|dv| 6.914e-06  mean EPE 1.207e-07  PASS
+  cuda-rb        max|du| 3.092e-06  max|dv| 7.987e-06  mean EPE 1.403e-07  PASS  (vs serial-rb)
+641x479, 500 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 5.28 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 3.934e-06  max|dv| 9.537e-06  mean EPE 1.681e-07  PASS
+  cuda-v2        max|du| 3.934e-06  max|dv| 9.537e-06  mean EPE 1.681e-07  PASS
+  cuda-v3        max|du| 3.904e-06  max|dv| 9.537e-06  mean EPE 1.680e-07  PASS
+  cuda-rb        max|du| 4.113e-06  max|dv| 1.001e-05  mean EPE 1.857e-07  PASS  (vs serial-rb)
+641x479, 1000 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 5.3 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 4.113e-06  max|dv| 1.001e-05  mean EPE 1.861e-07  PASS
+  cuda-v2        max|du| 4.113e-06  max|dv| 1.001e-05  mean EPE 1.861e-07  PASS
+  cuda-v3        max|du| 4.113e-06  max|dv| 1.001e-05  mean EPE 1.857e-07  PASS
+  cuda-rb        max|du| 4.143e-06  max|dv| 1.001e-05  mean EPE 2.029e-07  PASS  (vs serial-rb)
+640x480, 100 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 4.29 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 3.064e-06  max|dv| 5.960e-06  mean EPE 1.235e-07  PASS
+  cuda-v2        max|du| 3.064e-06  max|dv| 5.960e-06  mean EPE 1.235e-07  PASS
+  cuda-v3        max|du| 3.062e-06  max|dv| 5.960e-06  mean EPE 1.239e-07  PASS
+  cuda-rb        max|du| 3.546e-06  max|dv| 7.391e-06  mean EPE 1.462e-07  PASS  (vs serial-rb)
+640x480, 500 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 5.28 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 4.351e-06  max|dv| 8.106e-06  mean EPE 1.734e-07  PASS
+  cuda-v2        max|du| 4.351e-06  max|dv| 8.106e-06  mean EPE 1.734e-07  PASS
+  cuda-v3        max|du| 4.351e-06  max|dv| 8.106e-06  mean EPE 1.734e-07  PASS
+  cuda-rb        max|du| 4.947e-06  max|dv| 7.868e-06  mean EPE 1.926e-07  PASS  (vs serial-rb)
+640x480, 1000 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 5.3 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 5.007e-06  max|dv| 8.345e-06  mean EPE 1.922e-07  PASS
+  cuda-v2        max|du| 5.007e-06  max|dv| 8.345e-06  mean EPE 1.922e-07  PASS
+  cuda-v3        max|du| 5.007e-06  max|dv| 8.345e-06  mean EPE 1.926e-07  PASS
+  cuda-rb        max|du| 5.245e-06  max|dv| 8.106e-06  mean EPE 2.118e-07  PASS  (vs serial-rb)
+1280x720, 100 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 4.65 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 4.977e-06  max|dv| 6.020e-06  mean EPE 1.371e-07  PASS
+  cuda-v2        max|du| 4.977e-06  max|dv| 6.020e-06  mean EPE 1.371e-07  PASS
+  cuda-v3        max|du| 4.977e-06  max|dv| 6.020e-06  mean EPE 1.374e-07  PASS
+  cuda-rb        max|du| 5.424e-06  max|dv| 8.225e-06  mean EPE 1.657e-07  PASS  (vs serial-rb)
+1280x720, 500 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 6.6 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 5.960e-06  max|dv| 1.097e-05  mean EPE 2.099e-07  PASS
+  cuda-v2        max|du| 5.960e-06  max|dv| 1.097e-05  mean EPE 2.099e-07  PASS
+  cuda-v3        max|du| 5.960e-06  max|dv| 1.097e-05  mean EPE 2.101e-07  PASS
+  cuda-rb        max|du| 7.212e-06  max|dv| 1.264e-05  mean EPE 2.471e-07  PASS  (vs serial-rb)
+1280x720, 1000 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 6.98 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 7.212e-06  max|dv| 1.252e-05  mean EPE 2.473e-07  PASS
+  cuda-v2        max|du| 7.212e-06  max|dv| 1.252e-05  mean EPE 2.473e-07  PASS
+  cuda-v3        max|du| 7.212e-06  max|dv| 1.252e-05  mean EPE 2.477e-07  PASS
+  cuda-rb        max|du| 7.451e-06  max|dv| 1.287e-05  mean EPE 2.864e-07  PASS  (vs serial-rb)
+1920x1080, 100 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 5.41 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 7.510e-06  max|dv| 1.013e-05  mean EPE 1.472e-07  PASS
+  cuda-v2        max|du| 7.510e-06  max|dv| 1.013e-05  mean EPE 1.472e-07  PASS
+  cuda-v3        max|du| 7.495e-06  max|dv| 1.013e-05  mean EPE 1.474e-07  PASS
+  cuda-rb        max|du| 8.255e-06  max|dv| 1.407e-05  mean EPE 1.834e-07  PASS  (vs serial-rb)
+1920x1080, 500 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 8.07 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 9.835e-06  max|dv| 2.110e-05  mean EPE 2.445e-07  PASS
+  cuda-v2        max|du| 9.835e-06  max|dv| 2.110e-05  mean EPE 2.445e-07  PASS
+  cuda-v3        max|du| 9.835e-06  max|dv| 2.110e-05  mean EPE 2.447e-07  PASS
+  cuda-rb        max|du| 1.180e-05  max|dv| 2.778e-05  mean EPE 3.050e-07  PASS  (vs serial-rb)
+1920x1080, 1000 iterations, alpha 0.5 (reference omp Jacobi, max |flow| = 9.11 px)
+  serial-jacobi  max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  omp-opt        max|du| 0.000e+00  max|dv| 0.000e+00  mean EPE 0.000e+00  PASS
+  cuda-v1        max|du| 1.204e-05  max|dv| 2.766e-05  mean EPE 3.046e-07  PASS
+  cuda-v2        max|du| 1.204e-05  max|dv| 2.766e-05  mean EPE 3.046e-07  PASS
+  cuda-v3        max|du| 1.192e-05  max|dv| 2.766e-05  mean EPE 3.048e-07  PASS
+  cuda-rb        max|du| 1.407e-05  max|dv| 3.505e-05  mean EPE 3.779e-07  PASS  (vs serial-rb)
+All checks passed (CPU: bit-exact; CUDA: max abs 0.0001, mean EPE 1e-06)

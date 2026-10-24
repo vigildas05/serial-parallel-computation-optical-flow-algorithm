@@ -9,7 +9,9 @@
 #   ncu_<impl>.csv       raw per-launch metrics for the iteration kernel
 #   ncu_<impl>.ncu-rep   full Nsight Compute report (one launch) for the GUI
 #   summary.md           table built from the CSVs by scripts/summarize_ncu.py
-#   nsys_pipeline.*      Nsight Systems timeline + text summaries
+#   nsys_pipeline.*      Nsight Systems timeline + CSV summaries. The .nsys-rep
+#                        embeds the process environment (may contain tokens):
+#                        it is git-ignored, do not share it publicly.
 #
 # Nsight Compute needs access to GPU performance counters: on Linux run as
 # root or set NVreg_RestrictProfilingToAdminUsers=0; on Windows enable

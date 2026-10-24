@@ -1,0 +1,4 @@
+CPU:    11th Gen Intel(R) Core(TM) i7-11800H @ 2.30GHz (8 cores, 16 threads)
+OpenMP: max threads 16
+OpenCV: 4.14.0
+GPU:    NVIDIA GeForce RTX 2050 | sm_86 | 16 SMs | 4095 MiB | 64-bit bus, 112.016 GB/s peak | L2 1024 KiB | driver 13.3, runtime 13.3

@@ -1,0 +1,10 @@
+Time (%),Total Time (ns),Instances,Avg (ns),Med (ns),Min (ns),Max (ns),StdDev (ns),Name
+40.8,509660336,800,637075.4,637053.0,631998,640606,1246.4,"hs::gpu::detail::<unnamed>::redBlackKernel(float2 *, const float *, const float *, const float *, int, int, int)"
+19.9,247991472,400,619978.7,619890.0,618993,621842,483.8,"hs::gpu::detail::<unnamed>::jacobiSharedKernel(const float *, const float *, const float *, const float *, const float *, const float *, float *, float *, int, int)"
+19.8,247400729,400,618501.8,618514.0,617553,620658,480.1,"hs::gpu::detail::<unnamed>::jacobiNaiveKernel(const float *, const float *, const float *, const float *, const float *, const float *, float *, float *, int, int)"
+17.5,219185435,400,547963.6,547934.0,545950,550238,620.9,"hs::gpu::detail::<unnamed>::jacobiFusedKernel(const float2 *, const float *, const float *, const float *, float2 *, int, int)"
+0.6,7604259,16,475266.2,475294.5,474334,476222,643.2,"hs::gpu::detail::<unnamed>::derivativesKernel(const float *, const float *, float, float *, float *, float *, float *, int, int)"
+0.4,5061237,32,158163.7,158117.0,157461,158911,403.9,"hs::gpu::detail::<unnamed>::gaussianColKernel(const float *, float *, int, int)"
+0.4,5032632,32,157269.8,157476.0,155284,158688,894.2,"hs::gpu::detail::<unnamed>::gaussianRowKernel(const float *, float *, int, int)"
+0.4,4500584,8,562573.0,562878.0,558025,565886,2487.4,"hs::gpu::detail::<unnamed>::foldCoefficientsKernel(const float *, const float *, const float *, const float *, float *, float *, float *, int)"
+0.2,2538497,8,317312.1,317295.0,315422,319583,1400.8,"hs::gpu::detail::<unnamed>::splitFlowKernel(const float2 *, float *, float *, int)"

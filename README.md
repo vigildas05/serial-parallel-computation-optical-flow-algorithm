@@ -13,7 +13,17 @@ four ways and measured against each other:
 Every implementation solves exactly the same discrete problem. Each one is checked
 automatically against a CPU reference before it's benchmarked (see [Correctness](#correctness)).
 
-**Headline:** TODO: fill after run
+**Headline** (1920×1080, 1000 iterations, RTX 2050 laptop GPU vs i7-11800H, end-to-end including transfers):
+
+| | time | CUDA v3 speedup |
+|---|---:|---:|
+| serial Gauss–Seidel (original baseline) | 23 769 ms | **42.7×** |
+| original OpenMP, 16 threads | 6 112 ms | **11.0×** |
+| restructured OpenMP (`omp-opt`), best thread count (8) | 2 194 ms | **3.9×** |
+| CUDA v3 | 556 ms | |
+
+All GPU iteration kernels run at **95–96% of peak DRAM bandwidth** (Nsight Compute), so they're
+memory-bound. On the GPU, the only optimization that helped was moving fewer bytes per pixel.
 
 ---
 
@@ -140,8 +150,17 @@ Partial-block sizes (37×5, 641×479) are included to exercise grid and halo edg
 refactor of the original serial and OpenMP code was also checked to be bit-identical to the
 pre-refactor output.
 
-Latest validation output: [`results/validation.txt`](results/validation.txt).
-Worst-case errors: TODO: fill after run
+Latest validation output: [`results/validation.txt`](results/validation.txt). It covers
+37×5, 641×479, 640×480, 1280×720 and 1920×1080 at 100/500/1000 iterations, with 0 failures.
+Worst case over all of them:
+
+| implementation | max \|Δu\|, \|Δv\| (px) | mean endpoint error (px) |
+|---|---:|---:|
+| `serial-jacobi`, `omp-opt` | 0 (bit-identical) | 0 |
+| `cuda-v1`, `cuda-v2`, `cuda-v3` | 2.8e-5 | 3.1e-7 |
+| `cuda-rb` (vs `serial-rb`) | 3.5e-5 | 3.8e-7 |
+
+For scale, the flow itself reaches 9 px at 1080p / 1000 iterations.
 
 ---
 
@@ -285,19 +304,109 @@ The program prints this information at the start of every benchmark and writes i
 
 ### Results
 
-TODO: fill after run
+1920×1080, the largest configuration. All three resolutions are in
+[`results/tables.md`](results/tables.md), and raw medians/min/max are in
+[`results/benchmark.csv`](results/benchmark.csv). Medians of 10 runs, in ms. OpenMP rows use 16 threads.
+
+| implementation | threads | iterations | total | compute | H2D | D2H | speedup vs serial-gs | speedup vs serial-jacobi |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| serial-gs | 1 | 100 | 2309.82 | 2309.82 |  |  | 1.0× | 0.5× |
+| serial-jacobi | 1 | 100 | 1270.15 | 1270.15 |  |  | 1.8× | 1.0× |
+| serial-rb | 1 | 100 | 1242.14 | 1242.14 |  |  | 1.9× | 1.0× |
+| omp | 16 | 100 | 762.33 | 762.33 |  |  | 3.0× | 1.7× |
+| omp-opt | 16 | 100 | 332.79 | 332.79 |  |  | 6.9× | 3.8× |
+| cuda-v1 | – | 100 | 67.85 | 63.40 | 2.03 | 2.42 | 34.0× | 18.7× |
+| cuda-v2 | – | 100 | 67.98 | 63.49 | 2.01 | 2.45 | 34.0× | 18.7× |
+| cuda-v3 | – | 100 | 61.66 | 57.25 | 2.00 | 2.40 | 37.5× | 20.6× |
+| cuda-rb | – | 100 | 134.68 | 130.18 | 2.07 | 2.43 | 17.2× | 9.4× |
+| serial-gs | 1 | 500 | 13473.59 | 13473.59 |  |  | 1.0× | 0.6× |
+| serial-jacobi | 1 | 500 | 7708.79 | 7708.79 |  |  | 1.7× | 1.0× |
+| serial-rb | 1 | 500 | 6803.30 | 6803.30 |  |  | 2.0× | 1.1× |
+| omp | 16 | 500 | 2884.86 | 2884.86 |  |  | 4.7× | 2.7× |
+| omp-opt | 16 | 500 | 1203.76 | 1203.76 |  |  | 11.2× | 6.4× |
+| cuda-v1 | – | 500 | 315.67 | 311.16 | 2.08 | 2.44 | 42.7× | 24.4× |
+| cuda-v2 | – | 500 | 316.21 | 311.63 | 2.08 | 2.48 | 42.6× | 24.4× |
+| cuda-v3 | – | 500 | 281.52 | 276.93 | 2.12 | 2.46 | 47.9× | 27.4× |
+| cuda-rb | – | 500 | 646.20 | 641.64 | 2.07 | 2.43 | 20.9× | 11.9× |
+| serial-gs | 1 | 1000 | 23768.54 | 23768.54 |  |  | 1.0× | 0.5× |
+| serial-jacobi | 1 | 1000 | 12684.61 | 12684.61 |  |  | 1.9× | 1.0× |
+| serial-rb | 1 | 1000 | 12593.63 | 12593.63 |  |  | 1.9× | 1.0× |
+| omp | 16 | 1000 | 6112.24 | 6112.24 |  |  | 3.9× | 2.1× |
+| omp-opt | 16 | 1000 | 2430.64 | 2430.64 |  |  | 9.8× | 5.2× |
+| cuda-v1 | – | 1000 | 625.59 | 620.89 | 2.12 | 2.51 | 38.0× | 20.3× |
+| cuda-v2 | – | 1000 | 626.46 | 621.82 | 2.10 | 2.46 | 37.9× | 20.2× |
+| cuda-v3 | – | 1000 | 556.07 | 551.54 | 2.07 | 2.46 | 42.7× | 22.8× |
+| cuda-rb | – | 1000 | 1285.66 | 1281.05 | 2.10 | 2.45 | 18.5× | 9.9× |
+
+Things to note:
+- **Transfers are small.** H2D + D2H come to about 4.5 ms at 1080p, under 1% of the 1000-iteration total.
+  CUDA speedups are about the same with or without them.
+- **GPU speedups barely change with iteration count**, because nearly all the time is in the
+  iteration kernel. Setup kernels (Gaussian, derivatives) take about 1 ms per run in the nsys trace.
+- **The original OpenMP code is slower than serial Jacobi until about 4 threads.** With 1 thread at
+  1080p it takes 35.3 s vs 12.7 s for serial Jacobi, from the `collapse(2)` index arithmetic and
+  `Mat::at` in the outlined loop. `omp-opt` fixes this with identical results.
+- **`serial-gs` is 1.7–1.9× slower per iteration than serial Jacobi.** The in-place dependency
+  prevents vectorization, but GS also converges in fewer iterations (see [Convergence](#convergence)).
+- **Noisy rows:** the short (100-iteration) `omp-opt` runs at 1080p vary a lot between runs. At
+  16 threads they range from 270 to 378 ms around the 333 ms median; compare 2143–2264 ms for
+  1000 iterations at 8 threads (min/max in the CSV). The trend is the same at every iteration
+  count, though: at 1080p, 16 threads is slower than 8.
 
 ### Speedup
 
-TODO: fill after run
+![Speedup over serial Gauss–Seidel](results/speedup.png)
+
+CUDA v1–v3 reach 32.5–47.9× over the serial Gauss–Seidel baseline across all sizes and
+iteration counts, and red-black 16.9–20.9×. Ranking: v3 fastest, v1 ≈ v2, then red-black.
+The OpenMP bars use 16 threads, which isn't the best setting at 1080p (see the next section).
 
 ### OpenMP thread scaling
 
-TODO: fill after run
+![OpenMP thread scaling](results/thread_scaling.png)
+
+Total ms at 1000 iterations. In parentheses: speedup vs `serial-jacobi`.
+
+| implementation | resolution | 1 thr | 2 thr | 4 thr | 8 thr | 16 thr |
+|---|---|---:|---:|---:|---:|---:|
+| omp | 640×480 | 5061.6 (0.3×) | 2739.7 (0.6×) | 1729.4 (1.0×) | 1378.9 (1.3×) | 794.4 (2.2×) |
+| omp-opt | 640×480 | 866.7 (2.0×) | 483.0 (3.7×) | 267.1 (6.6×) | 200.9 (8.8×) | 149.4 (11.8×) |
+| omp | 1280×720 | 14990.8 (0.4×) | 8035.9 (0.7×) | 5039.3 (1.1×) | 4184.4 (1.3×) | 2548.6 (2.1×) |
+| omp-opt | 1280×720 | 2626.8 (2.0×) | 1430.1 (3.7×) | 782.8 (6.8×) | 741.9 (7.2×) | 479.9 (11.2×) |
+| omp | 1920×1080 | 35333.1 (0.4×) | 25674.6 (0.5×) | 12699.0 (1.0×) | 9715.8 (1.3×) | 6112.2 (2.1×) |
+| omp-opt | 1920×1080 | 8891.8 (1.4×) | 4869.4 (2.6×) | 3085.5 (4.1×) | 2193.7 (5.8×) | 2430.6 (5.2×) |
+
+- **`omp-opt` is faster than serial Jacobi even with 1 thread** (1.4–2.0×): raw row pointers let
+  MSVC vectorize the inner loop. Relative to its own 1-thread time it scales 5.8× at 640×480
+  (16 threads) but only 4.1× at 1080p (best at 8 threads; 16 threads is slower).
+- **Probable cause (a hypothesis; CPU memory counters weren't measured):** the eight float
+  planes a Jacobi sweep touches take about 9.8 MB at 640×480, which fits in the i7-11800H's 24 MB
+  L3. At 1080p they take about 66 MB, so every sweep streams from DRAM. At 8 threads the
+  1080p run moves at least 32 B × 2.07 M pixels × 1000 sweeps / 2.19 s ≈ 30 GB/s, and more
+  threads can't add bandwidth. Above 8 threads the extra workers are hyper-threads sharing cores.
+- **The original `omp` reaches only 2.1–2.2× at 16 threads** and never catches up with `omp-opt`.
 
 ### Convergence
 
-TODO: fill after run
+![Convergence](results/convergence.png)
+
+Measured fixed-point residual (RMS change one Jacobi sweep would still make; lower is closer to
+the solution) at 640×480:
+
+| scheme | after 100 | after 500 | after 1000 | iterations to reach Jacobi's 1000-iteration residual (1.12e-4) |
+|---|---:|---:|---:|---:|
+| Gauss–Seidel (lexicographic) | 8.43e-4 | 1.13e-4 | 3.88e-5 | 501 |
+| red-black Gauss–Seidel | 1.19e-3 | 1.59e-4 | 5.49e-5 | 624 |
+| Jacobi | 1.82e-3 | 2.92e-4 | 1.12e-4 | 1000 |
+
+The GPU runs of each scheme follow their CPU counterpart: maximum relative residual difference
+4.0e-6 (cuda-v3 vs Jacobi) and 6.0e-6 (cuda-rb vs serial red-black).
+
+**Fewer iterations didn't mean less time on the GPU.** At 640×480 a red-black iteration costs
+0.195 ms vs 0.084 ms for a v3 Jacobi iteration (compute time / 1000 from the benchmark). Reaching
+Jacobi's 1000-iteration residual therefore takes about 624 × 0.195 ≈ 122 ms with red-black vs
+1000 × 0.084 ≈ 84 ms with Jacobi. That's the right panel of the chart; [Profiling](#profiling)
+explains why a red-black iteration is so expensive.
 
 ---
 
@@ -306,36 +415,121 @@ TODO: fill after run
 [`scripts/profile.sh`](scripts/profile.sh) runs:
 
 - **Nsight Compute** on the iteration kernel of each CUDA version at 1920×1080. It skips the
-  first 10 launches and samples the next 10. Metrics: duration, achieved and theoretical
-  occupancy, DRAM throughput (% of peak and GB/s), memory and SM throughput as % of peak
-  (speed-of-light), DRAM bytes moved, L1/L2 hit rates. It also saves one launch with
-  `--set full` for the Nsight Compute GUI.
+  first 10 launches and samples the next 10, with `--clock-control none` (see the methodology
+  note below). Metrics: duration, achieved and theoretical occupancy, DRAM throughput (% of
+  peak and GB/s), L1, L2, overall memory and SM throughput as % of peak (speed-of-light),
+  DRAM bytes moved, L1/L2 hit rates. It also saves one launch with `--set full` for the
+  Nsight Compute GUI.
 - **Nsight Systems** on the full pipeline, giving a timeline plus kernel, memcpy and API
   summaries.
 
 [`scripts/summarize_ncu.py`](scripts/summarize_ncu.py) turns the CSVs into the table below.
+Raw data and reports are in [`results/profile/`](results/profile/): open the `.ncu-rep` files in
+Nsight Compute. The Nsight Systems timeline (`nsys_pipeline.nsys-rep`) is **not committed**,
+because Nsight Systems stores the profiled process's environment variables in the report, and
+those can include access tokens. Run `scripts/profile.sh` to regenerate it locally. Its CSV
+summaries (`nsys_pipeline_*.csv`) are committed.
 
-TODO: fill after run
+Nsight Compute, 1920x1080, iteration kernel, median over sampled launches (GPU at its normal clocks).
+
+| version | duration (µs) | achieved occupancy | theoretical occupancy | DRAM throughput (% peak) | DRAM GB/s | L1 throughput (% peak) | L2 throughput (% peak) | memory SOL (% peak) | SM SOL (% peak) | DRAM bytes / pixel | L1 hit | L2 hit |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| cuda-v1 | 616.9 | 90.1% | 100.0% | 96.0% | 107.3 | 19.6% | 52.4% | 96.0% | 17.1% | 32.0 | 37.1% | 36.2% |
+| cuda-v2 | 617.9 | 92.1% | 100.0% | 95.9% | 107.2 | 31.2% | 42.8% | 95.9% | 31.2% | 32.0 | 0.8% | 36.0% |
+| cuda-v3 | 546.4 | 87.1% | 100.0% | 95.3% | 106.5 | 18.2% | 51.4% | 95.3% | 12.7% | 28.1 | 41.1% | 36.4% |
+| cuda-rb | 634.7 | 86.4% | 100.0% | 94.7% | 105.9 | 14.9% | 38.3% | 94.7% | 5.3% | 32.5 | 56.5% | 26.9% |
+
+Sampled launches per kernel: cuda-v1: 10, cuda-v2: 10, cuda-v3: 10, cuda-rb: 10
+
+"DRAM bytes / pixel" is per kernel launch. Red-black runs **two** launches per iteration.
+
+**Methodology note.** By default ncu locks the GPU to base clocks (1170 MHz SM on this card).
+In a first pass with that default, v1 took 913 µs per launch at only 65% of DRAM peak, which made
+the kernel look limited by something other than DRAM. Profiling with `--clock-control none`
+gives the clocks the benchmark actually runs at: v1 then takes 617 µs per launch, matching the
+benchmark's 621 ms / 1000 iterations. All numbers above use that setting.
 
 ### Analysis (from the measured metrics only)
 
-TODO: fill after run
+**All four iteration kernels are DRAM-bandwidth-bound.**
+- DRAM throughput is 94.7–96.0% of peak (105.9–107.3 GB/s of the 112 GB/s theoretical).
+- SM throughput is only 5–31% of peak, and L1 (15–31%) and L2 (38–52%) are far from saturated.
+- Achieved occupancy is 86–92% of a 100% theoretical, so there are enough warps in flight to
+  hide latency. Occupancy isn't the limiter, and tuning block size for occupancy wouldn't help.
+
+**v1 (naive): already at the compulsory-traffic floor.**
+- It moves 32.0 B per pixel per sweep. That's exactly the minimum: read u, v (8 B) plus four
+  coefficient planes (16 B), write u, v (8 B).
+- So the four extra neighbour reads per pixel are already served entirely by L1/L2 (L1 hit
+  rate 37%) and cost no extra DRAM traffic.
+
+**v2 (shared memory): no gain, and the metrics show why.**
+- Duration is 617.9 µs vs 616.9 µs, with the same 32.0 B per pixel.
+- Staging tiles in shared memory moved the neighbour reads off L1 (L1 hit rate fell from 37%
+  to 0.8%) and raised SM throughput from 17% to 31%, because of the shared-memory instructions
+  and `__syncthreads`.
+- But it couldn't remove DRAM bytes that v1 never wasted. Shared-memory tiling pays off when
+  the hardware caches fail to capture the reuse. On this Ampere GPU, with this 5-point stencil,
+  they already did.
+
+**v3 (fused layout): faster exactly in proportion to the bytes it saves.**
+- It moves 28.1 B per pixel (the design target was 28) at the same ~106 GB/s.
+- Its duration of 546.4 µs is 0.886× v1's; the byte ratio is 28.1/32.0 = 0.878×.
+- SM throughput also dropped to 12.7% (no division), but that doesn't affect a memory-bound kernel.
+
+**Red-black: each half-sweep costs about as much as a full Jacobi sweep.**
+- One launch updates half the pixels but takes 634.7 µs and moves 32.5 B per pixel (counted
+  over all pixels). Two launches per iteration therefore make it about 2.3× a v3 sweep, which
+  matches the benchmark (1.281 s vs 0.552 s compute at 1080p, 1000 iterations).
+- This is consistent with the checkerboard interleaving at element granularity: every 32-byte
+  DRAM sector contains pixels of both colours. Reading p, q, r for the red pixels fetches the
+  black ones too, and writing half the `float2` values still touches every sector.
+- A layout that stores red and black pixels in separate compact arrays should cut that
+  traffic roughly in half. Not implemented.
+
+**What would help next (not implemented, so not measured).** With every kernel at ~95% of DRAM
+peak, the only remaining lever is fewer bytes per sweep:
+- lower-precision coefficients (an accuracy trade-off)
+- the red-black colour-split layout above
+- temporal blocking: several sweeps per launch on a shared-memory tile with a wider halo, so
+  data is reused across iterations instead of re-read from DRAM
+
+**Nsight Systems (whole pipeline, 1080p, 100 iterations per run).**
+- The four iteration kernels take 98.0% of GPU kernel time.
+- Per run, the setup kernels take about 1.1 ms: Gaussian row and column passes ~0.16 ms each
+  per frame, derivatives ~0.48 ms.
+- An 8.3 MB frame upload averages 0.72 ms (≈11.5 GB/s from pageable memory).
+- See `results/profile/nsys_pipeline_*.csv`.
 
 ---
 
 ## Flow visualizations
 
-HSV coding: hue = flow direction, brightness = magnitude. All images share the colour scale
-of the first one, so they can be compared directly.
+HSV coding: hue = flow direction, brightness = magnitude. All four images share one colour scale
+(maximum = 9.08 px, the largest flow in the first image), so they can be compared directly. The
+input is the native 1600×999 frame pair after 1000 iterations. Regenerate with
+`opt-flow-parallel flow --impl serial-gs,omp,cuda-v3,cuda-rb --iters 1000`.
 
-TODO: fill after run
+| serial Gauss–Seidel (CPU) | OpenMP Jacobi (CPU) |
+|---|---|
+| ![serial GS](output/flow_hsv_serial-gs.png) | ![OpenMP](output/flow_hsv_omp.png) |
+| **CUDA v3 Jacobi (GPU)** | **CUDA red-black (GPU)** |
+| ![CUDA v3](output/flow_hsv_cuda-v3.png) | ![CUDA red-black](output/flow_hsv_cuda-rb.png) |
+
+The two Jacobi images (CPU `omp`, GPU `cuda-v3`) are numerically within the validation tolerance
+of each other. The Gauss–Seidel and red-black images use different iteration schemes, which
+haven't fully converged after 1000 iterations, so they differ slightly from Jacobi (see
+[Convergence](#convergence)).
+
+The original arrow plots from the two-argument demo (`output/flow_serial.png`,
+`output/flow_parallel.png`) are still produced by `./run.sh`.
 
 ---
 
 ## Caveats
 - **Laptop hardware.** Clocks depend on power source and temperature, and runs over many
   minutes can throttle. Medians over 10 runs reduce but don't remove this.
-  Power state during the runs: TODO: confirm (plugged in / power mode).
+  The runs reported here were taken with the laptop in its performance power mode.
 - **Windows/WDDM.** Kernel launch and transfer overheads under WDDM are higher than under
   Linux or TCC. They matter most for the small, low-iteration configurations.
 - **Enlarged input at 1920×1080.** The source frames are 1600×999, so the 1080p case is

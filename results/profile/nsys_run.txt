@@ -1,0 +1,5 @@
+Collecting data...
+Generating 'C:\Users\MSI~1\AppData\Local\Temp\nsys-report-e9b6.qdstrm'
+[1/1] [0%                          ] nsys_pipeline.nsys-rep[1/1] [0%                          ] nsys_pipeline.nsys-rep[1/1] [===================82%      ] nsys_pipeline.nsys-rep[1/1] [========================100%] nsys_pipeline.nsys-rep[1/1] [========================100%] nsys_pipeline.nsys-rep
+Generated:
+	C:\Users\M S I\OneDrive\Desktop\myrew\opt-flow-parallel\results/profile/nsys_pipeline.nsys-rep
