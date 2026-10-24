@@ -8,13 +8,13 @@ mkdir -p build output
 
 # Configure and build (Release by default)
 cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
-cmake --build build -j
+cmake --build build --config Release -j
 
 # Try common executable names
 EXE=""
-for cand in optical_flow opt-flow-parallel xcorr_parallel; do
-  if [[ -x "build/$cand" ]]; then
-    EXE="build/$cand"
+for cand in build/opt-flow-parallel build/Release/opt-flow-parallel.exe build/Release/opt-flow-parallel; do
+  if [[ -x "$cand" ]]; then
+    EXE="$cand"
     break
   fi
 done
