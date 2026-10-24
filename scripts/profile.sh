@@ -31,7 +31,10 @@ fi
 find_tool() { # name, glob of fallback locations
   local name="$1"; shift
   if command -v "$name" >/dev/null 2>&1; then command -v "$name"; return; fi
-  for p in "$@"; do [[ -x "$p" ]] && { echo "$p"; return; }; done
+  for p in "$@"; do
+    # Git Bash does not mark Windows .bat launchers as executable.
+    if [[ -x "$p" || ( "$p" == *.bat && -f "$p" ) ]]; then echo "$p"; return; fi
+  done
   return 1
 }
 shopt -s nullglob
@@ -47,14 +50,18 @@ mkdir -p "$OUT"
 
 # Metrics (Nsight Compute names):
 #   duration, achieved/theoretical occupancy, DRAM throughput as % of peak and
-#   in bytes/s, memory-system and SM throughput as % of peak (speed-of-light),
-#   DRAM bytes moved, and L1/L2 hit rates.
+#   in bytes/s, L1 / L2 / overall memory and SM throughput as % of peak
+#   (speed-of-light), DRAM bytes moved, and L1/L2 hit rates.
+# Collected with --clock-control none, i.e. at the same (boost) clocks the
+# benchmarks run at; ncu's default locks base clocks, which lowers the SM/L1
+# clock relative to DRAM and shifts the bottleneck.
 METRICS="gpu__time_duration.sum"
 METRICS+=",sm__warps_active.avg.pct_of_peak_sustained_active,sm__maximum_warps_per_active_cycle_pct"
 METRICS+=",dram__throughput.avg.pct_of_peak_sustained_elapsed,dram__bytes.sum.per_second"
 METRICS+=",dram__bytes_read.sum,dram__bytes_write.sum"
 METRICS+=",gpu__compute_memory_throughput.avg.pct_of_peak_sustained_elapsed"
 METRICS+=",sm__throughput.avg.pct_of_peak_sustained_elapsed"
+METRICS+=",l1tex__throughput.avg.pct_of_peak_sustained_active,lts__throughput.avg.pct_of_peak_sustained_elapsed"
 METRICS+=",l1tex__t_sector_hit_rate.pct,lts__t_sector_hit_rate.pct"
 
 declare -A KERNEL=(
@@ -69,12 +76,12 @@ if [[ -n "$NCU" ]]; then
   for impl in cuda-v1 cuda-v2 cuda-v3 cuda-rb; do
     k="${KERNEL[$impl]}"
     # Skip the first launches (cold caches / clocks ramping), sample 10.
-    "$NCU" --kernel-name-base function --kernel-name "regex:$k" \
+    "$NCU" --clock-control none --kernel-name-base function --kernel-name "regex:$k" \
       --launch-skip 10 --launch-count 10 --metrics "$METRICS" --csv --page raw \
       --log-file "$OUT/ncu_$impl.csv" \
       "$EXE" bench --impl "$impl" --size "$SIZE" --iters 30 --runs 1 --warmup 0 >/dev/null
     # One fully detailed launch for interactive inspection in ncu-ui.
-    "$NCU" --kernel-name-base function --kernel-name "regex:$k" \
+    "$NCU" --clock-control none --kernel-name-base function --kernel-name "regex:$k" \
       --launch-skip 10 --launch-count 1 --set full --import-source yes -f -o "$OUT/ncu_$impl" \
       "$EXE" bench --impl "$impl" --size "$SIZE" --iters 30 --runs 1 --warmup 0 >/dev/null
     echo "  $impl -> $OUT/ncu_$impl.csv, $OUT/ncu_$impl.ncu-rep"
@@ -90,7 +97,10 @@ fi
 
 if [[ -n "$NSYS" ]]; then
   echo "== Nsight Systems: $NSYS"
-  "$NSYS" profile --trace=cuda,osrt --force-overwrite true -o "$OUT/nsys_pipeline" \
+  # OS runtime tracing (osrt) exists only on Linux.
+  TRACE=cuda
+  [[ "$(uname -s)" == Linux ]] && TRACE=cuda,osrt
+  "$NSYS" profile --trace="$TRACE" --force-overwrite true -o "$OUT/nsys_pipeline" \
     "$EXE" bench --impl cuda-v1,cuda-v2,cuda-v3,cuda-rb --size "$SIZE" --iters 100 --runs 3 --warmup 1 \
     > "$OUT/nsys_run.txt"
   "$NSYS" stats --force-export true --report cuda_gpu_kern_sum,cuda_gpu_mem_time_sum,cuda_api_sum \
