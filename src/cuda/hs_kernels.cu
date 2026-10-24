@@ -169,6 +169,71 @@ __global__ void jacobiSharedKernel(const float *__restrict__ u, const float *__r
     v_out[i] = v_avg - iy * t;
 }
 
+// ---------------------------------------------------------------------------
+// v3: fused data layout.
+//
+// The update  u' = u_avg - Ix * (Ix*u_avg + Iy*v_avg + It) / denom  (and the
+// same for v) is rewritten with p = Ix/sqrt(denom), q = Iy/sqrt(denom),
+// r = It/sqrt(denom) as
+//     t = p*u_avg + q*v_avg + r,   u' = u_avg - p*t,   v' = v_avg - q*t
+// which is algebraically identical, needs no division, and reads 3 instead
+// of 4 coefficient arrays. u and v are interleaved as float2 so each
+// neighbour is one 8-byte load. Per interior pixel and sweep the minimum
+// DRAM traffic drops from 32 B (v1/v2) to 28 B.
+// ---------------------------------------------------------------------------
+__global__ void foldCoefficientsKernel(const float *__restrict__ Ix, const float *__restrict__ Iy,
+                                       const float *__restrict__ It, const float *__restrict__ denom,
+                                       float *__restrict__ p, float *__restrict__ q,
+                                       float *__restrict__ r, int n)
+{
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n)
+        return;
+    const float s = 1.0f / sqrtf(denom[i]);
+    p[i] = Ix[i] * s;
+    q[i] = Iy[i] * s;
+    r[i] = It[i] * s;
+}
+
+__global__ void jacobiFusedKernel(const float2 *__restrict__ uv,
+                                  const float *__restrict__ p, const float *__restrict__ q,
+                                  const float *__restrict__ r,
+                                  float2 *__restrict__ uv_out, int rows, int cols)
+{
+    const int x = blockIdx.x * blockDim.x + threadIdx.x;
+    const int y = blockIdx.y * blockDim.y + threadIdx.y;
+    if (x < 1 || y < 1 || x >= cols - 1 || y >= rows - 1)
+        return;
+
+    const int i = y * cols + x;
+    const float2 n = __ldg(uv + i - cols), s = __ldg(uv + i + cols);
+    const float2 w = __ldg(uv + i - 1), e = __ldg(uv + i + 1);
+    const float u_avg = 0.25f * (n.x + s.x + w.x + e.x);
+    const float v_avg = 0.25f * (n.y + s.y + w.y + e.y);
+
+    const float pi = __ldg(p + i), qi = __ldg(q + i);
+    const float t = pi * u_avg + qi * v_avg + __ldg(r + i);
+    uv_out[i] = make_float2(u_avg - pi * t, v_avg - qi * t);
+}
+
+__global__ void splitFlowKernel(const float2 *__restrict__ uv, float *__restrict__ u,
+                                float *__restrict__ v, int n)
+{
+    const int i = blockIdx.x * blockDim.x + threadIdx.x;
+    if (i >= n)
+        return;
+    const float2 f = uv[i];
+    u[i] = f.x;
+    v[i] = f.y;
+}
+
+constexpr int kBlock1D = 256;
+
+int blocks1D(int n)
+{
+    return (n + kBlock1D - 1) / kBlock1D;
+}
+
 } // namespace
 
 void setGaussianKernel(const float taps[5])
@@ -213,6 +278,27 @@ void launchJacobiShared(const float *u, const float *v,
 {
     jacobiSharedKernel<<<gridFor(rows, cols), dim3(kBlockX, kBlockY), 0, stream>>>(
         u, v, Ix, Iy, It, denom, u_out, v_out, rows, cols);
+    CUDA_CHECK_LAUNCH();
+}
+
+void launchFoldCoefficients(const float *Ix, const float *Iy, const float *It, const float *denom,
+                            float *p, float *q, float *r, int n, cudaStream_t stream)
+{
+    foldCoefficientsKernel<<<blocks1D(n), kBlock1D, 0, stream>>>(Ix, Iy, It, denom, p, q, r, n);
+    CUDA_CHECK_LAUNCH();
+}
+
+void launchJacobiFused(const float2 *uv, const float *p, const float *q, const float *r,
+                       float2 *uv_out, int rows, int cols, cudaStream_t stream)
+{
+    jacobiFusedKernel<<<gridFor(rows, cols), dim3(kBlockX, kBlockY), 0, stream>>>(
+        uv, p, q, r, uv_out, rows, cols);
+    CUDA_CHECK_LAUNCH();
+}
+
+void launchSplitFlow(const float2 *uv, float *u, float *v, int n, cudaStream_t stream)
+{
+    splitFlowKernel<<<blocks1D(n), kBlock1D, 0, stream>>>(uv, u, v, n);
     CUDA_CHECK_LAUNCH();
 }
 

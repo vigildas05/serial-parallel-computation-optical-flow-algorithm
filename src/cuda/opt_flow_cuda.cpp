@@ -47,27 +47,33 @@ std::string deviceSummary()
 }
 
 struct Solver::Impl {
-    int rows, cols;
-    size_t bytes;
+    int rows, cols, n;
+    size_t bytes; // one float plane
     cudaStream_t stream = nullptr;
     cudaEvent_t ev[4] = {};
 
     // Inputs and derivative scratch
     float *I1 = nullptr, *I2 = nullptr, *tmp = nullptr, *I1s = nullptr, *I2s = nullptr;
     float *Ix = nullptr, *Iy = nullptr, *It = nullptr, *denom = nullptr;
-    // Ping-pong flow buffers
+    // v1/v2: separate ping-pong u/v planes (u[0]/v[0] also stage the v3 result)
     float *u[2] = {}, *v[2] = {};
+    // v3 layout: folded coefficients and interleaved ping-pong flow
+    float *p = nullptr, *q = nullptr, *r = nullptr;
+    float2 *uv[2] = {};
 
-    float **allFloatBuffers[13] = {&I1, &I2, &tmp, &I1s, &I2s, &Ix, &Iy, &It, &denom,
-                                   &u[0], &u[1], &v[0], &v[1]};
+    float **planes[16] = {&I1, &I2, &tmp, &I1s, &I2s, &Ix, &Iy, &It, &denom,
+                          &u[0], &u[1], &v[0], &v[1], &p, &q, &r};
 
-    Impl(int r, int c) : rows(r), cols(c), bytes(size_t(r) * c * sizeof(float))
+    Impl(int rows_, int cols_)
+        : rows(rows_), cols(cols_), n(rows_ * cols_), bytes(size_t(rows_) * cols_ * sizeof(float))
     {
         CUDA_CHECK(cudaStreamCreateWithFlags(&stream, cudaStreamNonBlocking));
         for (auto &e : ev)
             CUDA_CHECK(cudaEventCreate(&e));
-        for (float **b : allFloatBuffers)
+        for (float **b : planes)
             CUDA_CHECK(cudaMalloc(b, bytes));
+        for (float2 *&b : uv)
+            CUDA_CHECK(cudaMalloc(&b, 2 * bytes));
 
         // Same 5-tap Gaussian OpenCV uses for GaussianBlur(5x5, sigma 1) on CV_32F.
         cv::Mat g = cv::getGaussianKernel(5, 1.0, CV_32F);
@@ -78,15 +84,62 @@ struct Solver::Impl {
     {
         // No CUDA_CHECK here: a destructor must not exit, and errors at
         // teardown have nothing left to corrupt.
-        for (float **b : allFloatBuffers)
+        for (float **b : planes)
             cudaFree(*b);
+        for (float2 *b : uv)
+            cudaFree(b);
         for (auto &e : ev)
             cudaEventDestroy(e);
         cudaStreamDestroy(stream);
     }
 
-    void downloadFlow(const float *du, const float *dv, cv::Mat &hu, cv::Mat &hv)
+    static bool usesFusedLayout(Kernel k) { return k == Kernel::Fused || k == Kernel::RedBlack; }
+
+    // Zero initial flow. Border pixels are never written, so they stay zero
+    // in every buffer, exactly like the CPU versions.
+    void resetFlow(Kernel k)
     {
+        if (usesFusedLayout(k)) {
+            for (float2 *b : uv)
+                CUDA_CHECK(cudaMemsetAsync(b, 0, 2 * bytes, stream));
+        } else {
+            for (int b = 0; b < 2; ++b) {
+                CUDA_CHECK(cudaMemsetAsync(u[b], 0, bytes, stream));
+                CUDA_CHECK(cudaMemsetAsync(v[b], 0, bytes, stream));
+            }
+        }
+    }
+
+    // One full iteration; `cur` indexes the ping-pong buffer holding the flow.
+    void step(Kernel k, int &cur)
+    {
+        const int nxt = cur ^ 1;
+        switch (k) {
+        case Kernel::Naive:
+            launchJacobiNaive(u[cur], v[cur], Ix, Iy, It, denom, u[nxt], v[nxt], rows, cols, stream);
+            break;
+        case Kernel::Shared:
+            launchJacobiShared(u[cur], v[cur], Ix, Iy, It, denom, u[nxt], v[nxt], rows, cols, stream);
+            break;
+        case Kernel::Fused:
+            launchJacobiFused(uv[cur], p, q, r, uv[nxt], rows, cols, stream);
+            break;
+        default:
+            CV_Error(cv::Error::StsNotImplemented, kernelName(k));
+        }
+        cur = nxt;
+    }
+
+    // Queue the copy of the current flow into hu/hv (de-interleaving first
+    // for the fused layout).
+    void downloadFlow(Kernel k, int cur, cv::Mat &hu, cv::Mat &hv)
+    {
+        const float *du = u[cur], *dv = v[cur];
+        if (usesFusedLayout(k)) {
+            launchSplitFlow(uv[cur], u[0], v[0], n, stream);
+            du = u[0];
+            dv = v[0];
+        }
         CUDA_CHECK(cudaMemcpyAsync(hu.ptr<float>(), du, bytes, cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaMemcpyAsync(hv.ptr<float>(), dv, bytes, cudaMemcpyDeviceToHost, stream));
     }
@@ -106,39 +159,28 @@ struct Solver::Impl {
         launchGaussianBlur(I1, tmp, I1s, rows, cols, stream);
         launchGaussianBlur(I2, tmp, I2s, rows, cols, stream);
         launchDerivatives(I1s, I2s, alpha, Ix, Iy, It, denom, rows, cols, stream);
-
-        // Zero initial flow; the border is never written so it stays zero.
-        for (int b = 0; b < 2; ++b) {
-            CUDA_CHECK(cudaMemsetAsync(u[b], 0, bytes, stream));
-            CUDA_CHECK(cudaMemsetAsync(v[b], 0, bytes, stream));
-        }
+        if (usesFusedLayout(kernel))
+            launchFoldCoefficients(Ix, Iy, It, denom, p, q, r, n, stream);
+        resetFlow(kernel);
 
         int cur = 0;
         for (int it = 0; it < iterations; ++it) {
-            const int nxt = cur ^ 1;
-            switch (kernel) {
-            case Kernel::Naive:
-                launchJacobiNaive(u[cur], v[cur], Ix, Iy, It, denom, u[nxt], v[nxt],
-                                  rows, cols, stream);
-                break;
-            case Kernel::Shared:
-                launchJacobiShared(u[cur], v[cur], Ix, Iy, It, denom, u[nxt], v[nxt],
-                                   rows, cols, stream);
-                break;
-            default:
-                CV_Error(cv::Error::StsNotImplemented, kernelName(kernel));
-            }
-            cur = nxt;
-
+            step(kernel, cur);
             if (onIteration) {
-                downloadFlow(u[cur], v[cur], hu, hv);
+                downloadFlow(kernel, cur, hu, hv);
                 CUDA_CHECK(cudaStreamSynchronize(stream));
                 onIteration(it + 1, hu, hv);
             }
         }
+        // The de-interleave for v3 is part of compute; D2H is the copies only.
+        if (usesFusedLayout(kernel))
+            launchSplitFlow(uv[cur], u[0], v[0], n, stream);
         CUDA_CHECK(cudaEventRecord(ev[2], stream));
 
-        downloadFlow(u[cur], v[cur], hu, hv);
+        const float *du = usesFusedLayout(kernel) ? u[0] : u[cur];
+        const float *dv = usesFusedLayout(kernel) ? v[0] : v[cur];
+        CUDA_CHECK(cudaMemcpyAsync(hu.ptr<float>(), du, bytes, cudaMemcpyDeviceToHost, stream));
+        CUDA_CHECK(cudaMemcpyAsync(hv.ptr<float>(), dv, bytes, cudaMemcpyDeviceToHost, stream));
         CUDA_CHECK(cudaEventRecord(ev[3], stream));
         CUDA_CHECK(cudaEventSynchronize(ev[3]));
 

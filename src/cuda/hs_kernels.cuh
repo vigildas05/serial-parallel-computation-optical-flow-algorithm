@@ -37,6 +37,17 @@ void launchJacobiShared(const float *u, const float *v,
                         float *u_out, float *v_out,
                         int rows, int cols, cudaStream_t stream);
 
+// v3 layout: p, q, r = Ix, Iy, It divided by sqrt(denom); n = rows * cols.
+void launchFoldCoefficients(const float *Ix, const float *Iy, const float *It, const float *denom,
+                            float *p, float *q, float *r, int n, cudaStream_t stream);
+
+// v3: Jacobi sweep on interleaved (u, v) with folded coefficients.
+void launchJacobiFused(const float2 *uv, const float *p, const float *q, const float *r,
+                       float2 *uv_out, int rows, int cols, cudaStream_t stream);
+
+// De-interleave (u, v) into separate planes for download.
+void launchSplitFlow(const float2 *uv, float *u, float *v, int n, cudaStream_t stream);
+
 } // namespace hs::gpu::detail
 
 #endif
